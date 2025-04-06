@@ -1,12 +1,19 @@
-# AVR Rust Blink - RUST in Morse Code
+# Algae Medium Monitor
 
-A Rust application for the AVR microcontroller that blinks the word "RUST" in Morse code.
+A Rust application for AVR microcontrollers that monitors pH and temperature of an algae water suspension.
 
-The program uses the built-in LED on pin 13 (PORTB5) to display the Morse code pattern.
+The program uses sensors to monitor key parameters of algae cultivation and provides data for optimal growth conditions.
 
 Designed for the ATmega328p on the Arduino Pro Mini and compatible boards.
 
 [The AVR-Rust Book](https://book.avr-rust.org/)
+
+## Key Features
+
+- pH monitoring of algae suspension
+- Temperature monitoring of cultivation medium
+- Data logging capabilities
+- Designed for long-term reliability and accuracy
 
 ## Prerequisites
 
@@ -47,16 +54,12 @@ $env:AVR_COM_PORT = "COM7"  # Change to your COM port
 .\flash.ps1
 ```
 
-## Morse Code Pattern
+## Hardware Requirements
 
-The program blinks "RUST" in Morse code on the built-in LED (Pin 13):
-
-| Letter | Morse Code |
-|--------|------------|
-| R      | .-.        |
-| U      | ..-        |
-| S      | ...        |
-| T      | -          |
+- Arduino Pro Mini or compatible AVR board
+- pH sensor module (analog)
+- DS18B20 or similar temperature sensor
+- Optional: SD card module for data logging
 
 ## Troubleshooting
 
