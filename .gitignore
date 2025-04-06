@@ -1,0 +1,51 @@
+# Rust build output
+/target/
+
+# Compiled binary output files
+*.elf
+*.hex
+*.bin
+
+# Backup files
+*~
+*.bak
+*.swp
+
+# IDE and editor specific files
+.vscode/
+.idea/
+*.iml
+.eclipse/
+.settings/
+*.sublime-workspace
+*.sublime-project
+
+# OS specific files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Debug files
+*.lst
+*.map
+*.sym
+
+# Environment specific files
+.env
+.env.local
+
+# Optional: Keep Cargo.lock for applications but not for libraries
+# Cargo.lock
+
+# AVR specific
+.pio/
+.pioenvs/
+.piolibdeps/
+
+# Generated docs
+/doc/doxygen/
+
+# Temporary files
+*.tmp
+*.temp
+*.log 
