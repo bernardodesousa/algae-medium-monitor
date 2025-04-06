@@ -1,0 +1,13 @@
+[package]
+name = "blink"
+version = "0.1.0"
+authors = ["Dylan McKay <me@dylanmckay.io>"]
+edition = '2018'
+
+[dependencies]
+ruduino = {  git = "https://github.com/avr-rust/ruduino", branch = "master" }
+
+[profile.release]
+opt-level = 'z'
+lto = true
+strip = true
