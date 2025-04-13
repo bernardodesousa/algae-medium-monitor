@@ -6,32 +6,49 @@ use ruduino::cores::current::port;
 use ruduino::Register;
 
 // Pins for the sensors
-const ADC0: u8 = 0;  // For pH sensor
+const ADC0: u8 = 0;  // For pH sensor (Po)
+const ADC1: u8 = 1;  // For T1 analog temperature (currently disconnected)
+type DS18B20Pin = port::D2;  // T2 pin for Dallas one-wire temperature sensor
 
-// DS18B20 temperature sensor on digital pin D2 (PD2)
-// Connected through the pH controller board
-// Typically: Yellow/White (data) -> D2, Red -> 5V, Black -> GND
+// Based on product description:
+// Po: PH Value Output
+// T1: Temperature Simulation Output
+// T2: Temperature probe (Dallas one-wire protocol)
 
-// Use the built-in D2 pin definition for the DS18B20
-// On ATmega328P, D2 is PD2 (Port D, bit 2)
-type DS18B20Pin = port::D2;
+// Dallas one-wire commands
+const SKIP_ROM: u8 = 0xCC;
+const CONVERT_T: u8 = 0x44;
+const READ_SCRATCHPAD: u8 = 0xBE;
+
+// DS18B20 temp conversion time (worst case)
+const TEMP_CONVERSION_TIME_MS: u32 = 750; // 12-bit resolution
+
+// Retry attempts for temperature readings
+const RETRY_COUNT: u8 = 3;
 
 // UART configuration
 const BAUD_RATE: u32 = 9600;
 const CPU_FREQUENCY: u32 = 16_000_000;
 const UBRR_VALUE: u16 = (CPU_FREQUENCY / (16 * BAUD_RATE) - 1) as u16;
 
-// DS18B20 ROM commands
-const SKIP_ROM: u8 = 0xCC;
-const CONVERT_T: u8 = 0x44;
-const READ_SCRATCHPAD: u8 = 0xBE;
-
-// DS18B20 temperature conversion times (worst case)
-const TEMP_CONVERSION_TIME_MS: u64 = 750; // 12-bit resolution takes max 750ms
-
 // Timing constants
 const READING_INTERVAL_MS: u32 = 2000; // Time between readings
-const RETRY_COUNT: u8 = 3; // Number of retry attempts for DS18B20
+
+// Calibration mode - set to true when calibrating
+const CALIBRATION_MODE: bool = true;
+
+// Known pH values for calibration
+const PH_ACID: f32 = 2.2;  // Lime juice approximate pH
+const PH_NEUTRAL: f32 = 7.0;  // Water approximate pH
+const PH_ALKALINE: f32 = 8.4;  // Baking soda solution approximate pH
+
+// pH conversion parameters
+// These parameters map the ADC values to pH values
+// Based on observations: Higher ADC = LOWER pH, Lower ADC = HIGHER pH
+const PH_MIN_ADC: u16 = 1020;  // ADC value corresponding to pH MIN
+const PH_MAX_ADC: u16 = 650;   // ADC value corresponding to pH MAX
+const PH_MIN: u16 = 200;       // pH 2.00 * 100
+const PH_MAX: u16 = 1400;      // pH 14.00 * 100
 
 // Register definitions for ADC
 mod adc {
@@ -155,29 +172,30 @@ pub extern "C" fn main() {
     // Status LED
     port::B5::set_output();
     
-    // Configure DS18B20 pin (initially as input)
+    // Configure DS18B20 pin
     DS18B20Pin::set_input();
     DS18B20Pin::set_high(); // Enable internal pull-up
     
     // Temperature and pH values
     let mut temp_value: i16 = 0;
+    let mut temp_analog: i16 = 0;
     let mut ph_value: u16;
-    
-    // Variables for tracking DS18B20 readings
     let mut temp_raw_low: u8 = 0;
     let mut temp_raw_high: u8 = 0;
-    let mut ds18b20_found = false;
-
+    
     // Send startup message
     uart_send_string("Algae Medium Monitor Starting...\r\n");
-    uart_send_string("DS18B20 via pH controller board\r\n");
+    uart_send_string("Reading sensors - HYBRID APPROACH:\r\n");
+    uart_send_string("Po (ADC0): pH Value Output\r\n");
+    uart_send_string("T1 (ADC1): Analog Temperature Output\r\n");
+    uart_send_string("T2 (D2): Dallas One-Wire Temperature Sensor\r\n");
 
     loop {
         // Blink LED to indicate cycle start
         port::B5::set_high();
         
-        // Read temperature from DS18B20 with retries
-        ds18b20_found = false;
+        // 1. Try to read temperature from DS18B20 (digital)
+        let mut ds18b20_found = false;
         
         for _ in 0..RETRY_COUNT {
             if ds18b20_reset() {
@@ -188,7 +206,7 @@ pub extern "C" fn main() {
                 ds18b20_write_byte(CONVERT_T);
                 
                 // Wait for conversion to complete
-                ruduino::delay::delay_ms(TEMP_CONVERSION_TIME_MS);
+                ruduino::delay::delay_ms(TEMP_CONVERSION_TIME_MS.into());
                 
                 // Read temperature data
                 if ds18b20_reset() {
@@ -205,136 +223,126 @@ pub extern "C" fn main() {
                     // Check if reading is valid (not 0x0000 or 0xFFFF)
                     if raw_temp_u16 != 0 && raw_temp_u16 != 0xFFFF {
                         // Convert to temperature in degrees Celsius * 10 for one decimal place
-                        // First convert to i16 for signed temperature support
                         let raw_temp = raw_temp_u16 as i16;
-                        // (Raw value is 1/16 degrees Celsius)
                         temp_value = (raw_temp * 10) / 16;
                         break; // Valid reading, exit retry loop
                     }
                 }
             }
-            
-            // If we got here in the retry loop, try again after a short delay
-            ruduino::delay::delay_ms(100);
+            ruduino::delay::delay_ms(100_u64);
         }
         
-        // Read pH value from analog pin A0 (PC0)
+        // 2. Read analog temperature from T1
+        let temp_analog_raw = read_adc(ADC1);
+        temp_analog = ((temp_analog_raw as u32 * 550) / 1023 + 50) as i16;
+        
+        // 3. Read pH value from Po
         let ph_raw = read_adc(ADC0);
         
-        // Convert pH reading (simplified conversion)
-        // Assuming pH range 0-14 maps to ADC range 0-1023
-        // We'll multiply by 100 to get two decimal places
-        ph_value = ((ph_raw as u32 * 1400) / 1023) as u16;
+        // Calculate pH using the calibrated formula - INVERTED relationship
+        let ph_value = if ph_raw >= PH_MIN_ADC {
+            // Above maximum ADC value, use minimum pH
+            PH_MIN
+        } else if ph_raw <= PH_MAX_ADC {
+            // Below minimum ADC value, use maximum pH
+            PH_MAX
+        } else {
+            // Linear interpolation between min and max
+            let adc_range = PH_MIN_ADC - PH_MAX_ADC;
+            let ph_range = PH_MAX - PH_MIN;
+            let adc_position = PH_MIN_ADC - ph_raw;
+            
+            PH_MIN + ((adc_position as u32 * ph_range as u32) / adc_range as u32) as u16
+        };
         
         // Finish LED blink
         port::B5::set_low();
         
-        // Send data over UART
-        uart_send_string("DS18B20: ");
-        if ds18b20_found {
-            uart_send_string("Found - T:");
-            uart_send_temperature(temp_value);
+        // Send values
+        if CALIBRATION_MODE {
+            // Calibration output format
+            uart_send_string("CALIBRATION MODE (INVERTED):\r\n");
+            uart_send_string("=================\r\n");
+            
+            uart_send_string("pH RAW ADC: ");
+            uart_send_integer(ph_raw, 10);
+            uart_send_string("\r\n");
+            
+            uart_send_string("pH VALUE: ");
+            uart_send_ph(ph_value);
+            uart_send_string("\r\n");
+            
+            uart_send_string("pH VALUE CALCULATION (Inverted):\r\n");
+            uart_send_string("ADC Range: ");
+            uart_send_integer(PH_MIN_ADC, 10);
+            uart_send_string(" (pH 2.0) - ");
+            uart_send_integer(PH_MAX_ADC, 10);
+            uart_send_string(" (pH 14.0)\r\n");
+            
+            uart_send_string("pH Range: ");
+            uart_send_ph(PH_MIN);
+            uart_send_string(" - ");
+            uart_send_ph(PH_MAX);
+            uart_send_string("\r\n");
+            
+            uart_send_string("Temperature: ");
+            if ds18b20_found {
+                uart_send_temperature(temp_value);
+            } else {
+                uart_send_string("Sensor not detected");
+            }
+            uart_send_string("\r\n");
+            
+            uart_send_string("Calibration Guide:\r\n");
+            uart_send_string("- Lime Juice ~pH 2.2 (acidic) - should read HIGH ADC\r\n");
+            uart_send_string("- Water ~pH 7.0 (neutral) - should read MEDIUM ADC\r\n");
+            uart_send_string("- Baking Soda ~pH 8.4 (alkaline) - should read LOW ADC\r\n");
+            uart_send_string("=================\r\n");
         } else {
-            uart_send_string("Not found");
-            temp_value = -9990; // Error value
+            // Normal output format
+            uart_send_string("Measurements:\r\n");
+            
+            // Digital temperature (T2)
+            uart_send_string("Temperature (Digital T2): ");
+            if ds18b20_found {
+                uart_send_temperature(temp_value);
+                uart_send_string(" (DS18B20 Found)");
+            } else {
+                uart_send_string("Sensor not detected");
+            }
+            uart_send_string("\r\n");
+            
+            // Analog temperature (T1)
+            uart_send_string("Temperature (Analog T1): ");
+            uart_send_temperature(temp_analog);
+            uart_send_string(" (ADC: ");
+            uart_send_integer(temp_analog_raw, 10);
+            uart_send_string(")");
+            if temp_analog_raw < 100 || temp_analog_raw > 900 {
+                uart_send_string(" - Likely disconnected/invalid");
+            }
+            uart_send_string("\r\n");
+            
+            // pH reading
+            uart_send_string("pH: ");
+            uart_send_ph(ph_value);
+            uart_send_string(" (ADC: ");
+            uart_send_integer(ph_raw, 10);
+            uart_send_string(")\r\n");
+            
+            // Raw digital temperature values
+            if ds18b20_found {
+                uart_send_string("DS18B20 Raw: 0x");
+                uart_send_integer(temp_raw_low as u16, 16);
+                uart_send_string(" 0x");
+                uart_send_integer(temp_raw_high as u16, 16);
+                uart_send_string("\r\n");
+            }
         }
-        
-        uart_send_string(" pH:");
-        uart_send_ph(ph_value);
-        uart_send_string("\r\n");
-        
-        // Send raw values for debugging
-        uart_send_string("Raw values - T: 0x");
-        if ds18b20_found {
-            uart_send_integer(temp_raw_low as u16, 16);
-            uart_send_string(" 0x");
-            uart_send_integer(temp_raw_high as u16, 16);
-        } else {
-            uart_send_string("?? ??");
-        }
-        uart_send_string(" pH: ");
-        uart_send_integer(ph_raw, 10);
-        uart_send_string("\r\n");
         
         // Wait before next reading
         ruduino::delay::delay_ms(READING_INTERVAL_MS.into());
     }
-}
-
-// DS18B20 1-Wire Protocol Functions
-
-// Reset the 1-Wire bus and check for device presence
-// Returns true if a device is present, false otherwise
-fn ds18b20_reset() -> bool {
-    // Pull the bus low for at least 480µs
-    DS18B20Pin::set_output();
-    DS18B20Pin::set_low();
-    ruduino::delay::delay_us(500);
-    
-    // Release the bus and wait for the presence pulse
-    DS18B20Pin::set_input();
-    DS18B20Pin::set_high(); // Enable pull-up
-    ruduino::delay::delay_us(70);
-    
-    // Read the bus state (low = device present)
-    let device_present = !DS18B20Pin::is_high();
-    
-    // Wait for the reset sequence to finish
-    ruduino::delay::delay_us(410);
-    
-    device_present
-}
-
-// Write a byte to the 1-Wire bus
-fn ds18b20_write_byte(mut byte: u8) {
-    for _ in 0..8 {
-        // Extract the least significant bit
-        let bit = byte & 0x01;
-        byte >>= 1;
-        
-        DS18B20Pin::set_output();
-        
-        if bit == 0 {
-            // Write 0: Pull low for 60-120µs
-            DS18B20Pin::set_low();
-            ruduino::delay::delay_us(70);
-            DS18B20Pin::set_high();
-            ruduino::delay::delay_us(5);
-        } else {
-            // Write 1: Pull low for 1-15µs, then release
-            DS18B20Pin::set_low();
-            ruduino::delay::delay_us(10);
-            DS18B20Pin::set_high();
-            ruduino::delay::delay_us(55);
-        }
-    }
-}
-
-// Read a byte from the 1-Wire bus
-fn ds18b20_read_byte() -> u8 {
-    let mut byte: u8 = 0;
-    
-    for i in 0..8 {
-        DS18B20Pin::set_output();
-        
-        // Initiate read time slot with a low pulse
-        DS18B20Pin::set_low();
-        ruduino::delay::delay_us(5);
-        
-        // Release the bus
-        DS18B20Pin::set_input();
-        DS18B20Pin::set_high(); // Enable pull-up
-        ruduino::delay::delay_us(10);
-        
-        // Read the bit value
-        let bit = if DS18B20Pin::is_high() { 1 } else { 0 };
-        byte |= bit << i;
-        
-        // Wait for time slot to complete
-        ruduino::delay::delay_us(45);
-    }
-    
-    byte
 }
 
 // Initialize the UART
@@ -364,23 +372,6 @@ fn uart_send_byte(data: u8) {
 fn uart_send_string(s: &str) {
     for byte in s.bytes() {
         uart_send_byte(byte);
-    }
-}
-
-// Send a temperature value over UART (format: XX.X)
-fn uart_send_temperature(value: i16) {
-    // Check for error value
-    if value == -9990 {
-        uart_send_string("Error");
-        return;
-    }
-    
-    // Handle negative temperatures
-    if value < 0 {
-        uart_send_byte(b'-');
-        uart_send_decimal(-value as u16, 1);
-    } else {
-        uart_send_decimal(value as u16, 1);
     }
 }
 
@@ -473,4 +464,90 @@ fn read_adc(channel: u8) -> u16 {
     
     // Combine the two bytes
     ((high as u16) << 8) | (low as u16)
+}
+
+// Send a temperature value over UART (format: XX.X)
+fn uart_send_temperature(value: i16) {
+    // Handle negative temperatures
+    if value < 0 {
+        uart_send_byte(b'-');
+        uart_send_decimal(-value as u16, 1);
+    } else {
+        uart_send_decimal(value as u16, 1);
+    }
+}
+
+// DS18B20 1-Wire Protocol Functions
+
+// Reset the 1-Wire bus and check for device presence
+fn ds18b20_reset() -> bool {
+    // Pull the bus low for at least 480µs
+    DS18B20Pin::set_output();
+    DS18B20Pin::set_low();
+    ruduino::delay::delay_us(500);
+    
+    // Release the bus and wait for the presence pulse
+    DS18B20Pin::set_input();
+    DS18B20Pin::set_high(); // Enable pull-up
+    ruduino::delay::delay_us(70);
+    
+    // Read the bus state (low = device present)
+    let device_present = !DS18B20Pin::is_high();
+    
+    // Wait for the reset sequence to finish
+    ruduino::delay::delay_us(410);
+    
+    device_present
+}
+
+// Write a byte to the 1-Wire bus
+fn ds18b20_write_byte(mut byte: u8) {
+    for _ in 0..8 {
+        // Extract the least significant bit
+        let bit = byte & 0x01;
+        byte >>= 1;
+        
+        DS18B20Pin::set_output();
+        
+        if bit == 0 {
+            // Write 0: Pull low for 60-120µs
+            DS18B20Pin::set_low();
+            ruduino::delay::delay_us(70);
+            DS18B20Pin::set_high();
+            ruduino::delay::delay_us(5);
+        } else {
+            // Write 1: Pull low for 1-15µs, then release
+            DS18B20Pin::set_low();
+            ruduino::delay::delay_us(10);
+            DS18B20Pin::set_high();
+            ruduino::delay::delay_us(55);
+        }
+    }
+}
+
+// Read a byte from the 1-Wire bus
+fn ds18b20_read_byte() -> u8 {
+    let mut byte: u8 = 0;
+    
+    for i in 0..8 {
+        DS18B20Pin::set_output();
+        
+        // Initiate read time slot with a low pulse
+        DS18B20Pin::set_low();
+        ruduino::delay::delay_us(5);
+        
+        // Release the bus
+        DS18B20Pin::set_input();
+        DS18B20Pin::set_high(); // Enable pull-up
+        ruduino::delay::delay_us(10);
+        
+        // Read the bit value
+        let bit = if DS18B20Pin::is_high() { 1 } else { 0 };
+        byte |= bit << i;
+        
+        // Wait for time slot to complete
+        ruduino::delay::delay_us(45);
+    }
+    
+    byte
 }
