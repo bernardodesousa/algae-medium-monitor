@@ -9,9 +9,11 @@ mod adc;
 mod uart;
 mod ds18b20;
 mod ph;
+mod display;
 
 // Timing constants
 const READING_INTERVAL_MS: u32 = 2000; // Time between readings
+const DISPLAY_UPDATE_MS: u32 = 5;      // Time between display updates
 
 #[no_mangle]
 pub extern "C" fn main() {
@@ -27,9 +29,15 @@ pub extern "C" fn main() {
     // Initialize DS18B20 temperature sensor
     ds18b20::initialize();
     
+    // Initialize the 7-segment display
+    display::initialize();
+    
     // Send startup message
     uart::send_string("Algae Medium Monitor Starting...\r\n");
     uart::send_string("Reading sensors\r\n");
+    
+    // Counter for alternating display
+    let mut display_counter: u8 = 0;
     
     loop {
         // Blink LED to indicate cycle start
@@ -48,6 +56,10 @@ pub extern "C" fn main() {
         
         // Finish LED blink
         port::B5::set_low();
+        
+        // Update display with alternating values
+        display::display_alternating(ph_value, temp_value, display_counter);
+        display_counter = display_counter.wrapping_add(1);
         
         // Send values
         if ph::CALIBRATION_MODE {
@@ -124,5 +136,11 @@ pub extern "C" fn main() {
         
         // Wait before next reading
         ruduino::delay::delay_ms(READING_INTERVAL_MS.into());
+        
+        // Update display during the waiting period
+        for _ in 0..(READING_INTERVAL_MS / DISPLAY_UPDATE_MS) {
+            display::update_display();
+            ruduino::delay::delay_ms(DISPLAY_UPDATE_MS.into());
+        }
     }
 }
