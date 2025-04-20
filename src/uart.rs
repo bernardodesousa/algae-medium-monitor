@@ -144,19 +144,3 @@ pub fn send_integer(mut value: u16, base: u16) {
         send_byte(buffer[j]);
     }
 }
-
-// Send a pH value over UART (format: X.XX)
-pub fn send_ph(value: u16) {
-    send_decimal(value, 2);
-}
-
-// Send a temperature value over UART (format: XX.X)
-pub fn send_temperature(value: i16) {
-    // Handle negative temperatures
-    if value < 0 {
-        send_byte(b'-');
-        send_decimal(-value as u16, 1);
-    } else {
-        send_decimal(value as u16, 1);
-    }
-}

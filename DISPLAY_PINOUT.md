@@ -1,6 +1,6 @@
 # 4-Digit 7-Segment Display Pinout Guide
 
-## Common Cathode 4-Digit Display Pinout
+## 5643A Common Cathode 4-Digit Display Pinout
 
 ```
     a
@@ -18,6 +18,8 @@ Pin Layout (Top View)
 |                  |
 |  6  7  8  9  10  |
 |                  |
+|  11 12           |
+|                  |
 +------------------+
 
 Pin Assignments:
@@ -26,13 +28,13 @@ Pin Assignments:
 3  - dp (decimal point)
 4  - c
 5  - g
-6  - b
-7  - a
-8  - f
-9  - Common Cathode (Digit 1)
-10 - Common Cathode (Digit 2)
-11 - Common Cathode (Digit 3)
-12 - Common Cathode (Digit 4)
+6  - Common Cathode (Digit 4)
+7  - b
+8  - Common Cathode (Digit 3)
+9  - Common Cathode (Digit 2)
+10 - f
+11 - a
+12 - Common Cathode (Digit 1)
 ```
 
 ## Segment to 74HC595 Mapping
@@ -40,16 +42,16 @@ Pin Assignments:
 For a common cathode display, we need to set the corresponding bit HIGH to light up a segment:
 
 ```
-74HC595 Output | 7-Segment Display Segment
-----------------------------------------
-Q0 (pin 1)     | a
-Q1 (pin 2)     | b
-Q2 (pin 3)     | c
-Q3 (pin 4)     | d
-Q4 (pin 5)     | e
-Q5 (pin 6)     | f
-Q6 (pin 7)     | g
-Q7 (pin 15)    | dp (decimal point)
+74HC595 Output | 7-Segment Display Segment | Pin Number
+----------------------------------------|------------
+Q0 (pin 15)    | a                        | 11
+Q1 (pin 1)     | b                        | 7
+Q2 (pin 2)     | c                        | 4
+Q3 (pin 3)     | d                        | 2
+Q4 (pin 4)     | e                        | 1
+Q5 (pin 5)     | f                        | 10
+Q6 (pin 6)     | g                        | 5
+Q7 (pin 7)     | dp (decimal point)       | 3
 ```
 
 ## Digit Patterns
@@ -88,4 +90,14 @@ Since we're using a common cathode display, we need to multiplex the digits. The
 4. Disable the common cathode pin
 5. Repeat for the next digit
 
-This creates the illusion that all digits are lit simultaneously due to persistence of vision. 
+This creates the illusion that all digits are lit simultaneously due to persistence of vision.
+
+## Common Cathode Pins
+
+For the 5643A display, the common cathode pins are:
+- Digit 1: Pin 12
+- Digit 2: Pin 9
+- Digit 3: Pin 8
+- Digit 4: Pin 6
+
+When multiplexing, you'll need to connect these pins to GND one at a time to activate each digit. 

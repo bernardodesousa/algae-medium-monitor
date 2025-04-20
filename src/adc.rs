@@ -31,24 +31,23 @@ impl Register for ADCL {
 // ADCSRA bits
 pub const ADEN: u8 = 1 << 7;   // ADC Enable
 pub const ADSC: u8 = 1 << 6;   // ADC Start Conversion
-pub const ADIF: u8 = 1 << 4;   // ADC Interrupt Flag
-pub const ADIE: u8 = 1 << 3;   // ADC Interrupt Enable
+// pub const ADIF: u8 = 1 << 4;   // ADC Interrupt Flag
+// pub const ADIE: u8 = 1 << 3;   // ADC Interrupt Enable
 pub const ADPS2: u8 = 1 << 2;  // ADC Prescaler Select Bit 2
 pub const ADPS1: u8 = 1 << 1;  // ADC Prescaler Select Bit 1
 pub const ADPS0: u8 = 1 << 0;  // ADC Prescaler Select Bit 0
 
 // ADMUX bits
-pub const REFS1: u8 = 1 << 7;  // Reference Selection Bit 1
+// pub const REFS1: u8 = 1 << 7;  // Reference Selection Bit 1
 pub const REFS0: u8 = 1 << 6;  // Reference Selection Bit 0
-pub const ADLAR: u8 = 1 << 5;  // ADC Left Adjust Result
-pub const MUX3: u8 = 1 << 3;   // Analog Channel Selection Bit 3
-pub const MUX2: u8 = 1 << 2;   // Analog Channel Selection Bit 2
-pub const MUX1: u8 = 1 << 1;   // Analog Channel Selection Bit 1
-pub const MUX0: u8 = 1 << 0;   // Analog Channel Selection Bit 0
+// pub const ADLAR: u8 = 1 << 5;  // ADC Left Adjust Result
+// pub const MUX3: u8 = 1 << 3;   // Analog Channel Selection Bit 3
+// pub const MUX2: u8 = 1 << 2;   // Analog Channel Selection Bit 2
+// pub const MUX1: u8 = 1 << 1;   // Analog Channel Selection Bit 1
+// pub const MUX0: u8 = 1 << 0;   // Analog Channel Selection Bit 0
 
 // ADC channel constants
 pub const ADC0: u8 = 0;  // For pH sensor (Po)
-pub const ADC1: u8 = 1;  // For T1 analog temperature
 
 // Initialize the ADC
 pub fn initialize() {

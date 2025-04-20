@@ -12,9 +12,6 @@ pub const READ_SCRATCHPAD: u8 = 0xBE;
 // DS18B20 temp conversion time (worst case)
 pub const TEMP_CONVERSION_TIME_MS: u32 = 750; // 12-bit resolution
 
-// Retry attempts for temperature readings
-pub const RETRY_COUNT: u8 = 3;
-
 // Initialize the DS18B20 pin
 pub fn initialize() {
     DS18B20Pin::set_input();
@@ -94,40 +91,34 @@ pub fn read_byte() -> u8 {
     byte
 }
 
-// Read temperature from DS18B20 sensor
-pub fn read_temperature() -> Option<i16> {
-    for _ in 0..RETRY_COUNT {
-        if reset() {
-            // Start temperature conversion
-            write_byte(SKIP_ROM);
-            write_byte(CONVERT_T);
-            
-            // Wait for conversion to complete
-            ruduino::delay::delay_ms(TEMP_CONVERSION_TIME_MS.into());
-            
-            // Read temperature data
-            if reset() {
-                write_byte(SKIP_ROM);
-                write_byte(READ_SCRATCHPAD);
-                
-                // Read first two bytes of scratchpad (temperature data)
-                let temp_low = read_byte();
-                let temp_high = read_byte();
-                
-                // Combine bytes for temperature (as a u16 first)
-                let raw_temp_u16 = ((temp_high as u16) << 8) | (temp_low as u16);
-                
-                // Check if reading is valid (not 0x0000 or 0xFFFF)
-                if raw_temp_u16 != 0 && raw_temp_u16 != 0xFFFF {
-                    // Convert to temperature in degrees Celsius * 10 for one decimal place
-                    let raw_temp = raw_temp_u16 as i16;
-                    let temp_value = (raw_temp * 10) / 16;
-                    return Some(temp_value);
-                }
-            }
+// Start a temperature conversion without waiting
+pub fn start_temperature_conversion() {
+    if reset() {
+        write_byte(SKIP_ROM);
+        write_byte(CONVERT_T);
+    }
+}
+
+// Read temperature value after conversion is complete (no conversion wait)
+pub fn read_temperature_after_conversion() -> Option<i16> {
+    if reset() {
+        write_byte(SKIP_ROM);
+        write_byte(READ_SCRATCHPAD);
+        
+        // Read first two bytes of scratchpad (temperature data)
+        let temp_low = read_byte();
+        let temp_high = read_byte();
+        
+        // Combine bytes for temperature (as a u16 first)
+        let raw_temp_u16 = ((temp_high as u16) << 8) | (temp_low as u16);
+        
+        // Check if reading is valid (not 0x0000 or 0xFFFF)
+        if raw_temp_u16 != 0 && raw_temp_u16 != 0xFFFF {
+            // Convert to temperature in degrees Celsius * 10 for one decimal place
+            let raw_temp = raw_temp_u16 as i16;
+            let temp_value = (raw_temp * 10) / 16;
+            return Some(temp_value);
         }
-        // If we got here in the retry loop, try again after a short delay
-        ruduino::delay::delay_ms(100_u64);
     }
     
     None // Return None if temperature reading failed

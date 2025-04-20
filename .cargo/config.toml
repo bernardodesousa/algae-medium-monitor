@@ -3,6 +3,10 @@ target = "avr-atmega328p.json"
 
 [unstable]
 build-std = ["core"]
+build-std-features = ["compiler-builtins-mem"]
+
+[target.'cfg(target_arch = "avr")']
+runner = "avrdude -p atmega328p -c arduino -P COM3 -b 115200 -D -U flash:w:{}"
 
 # Cargo versions before 2021-02-23 won't recognize this: https://github.com/rust-lang/cargo/pull/9175
 [env]

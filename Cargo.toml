@@ -1,11 +1,13 @@
 [package]
-name = "blink"
+name = "algae-medium-monitor"
 version = "0.1.0"
-authors = ["Dylan McKay <me@dylanmckay.io>"]
+authors = ["Bernard Lowe <bernard@example.com>"]
 edition = '2018'
 
 [dependencies]
-ruduino = {  git = "https://github.com/avr-rust/ruduino", branch = "master" }
+ruduino = { git = "https://github.com/avr-rust/ruduino", branch = "master" }
+avr_delay = { git = "https://github.com/avr-rust/delay", rev = "849918a8dfb2" }
+libm = "0.2"
 
 [profile.release]
 opt-level = 'z'

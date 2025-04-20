@@ -1,12 +1,12 @@
 // pH sensor module
 
 // Calibration mode - set to true when calibrating
-pub const CALIBRATION_MODE: bool = true;
+// pub const CALIBRATION_MODE: bool = true;
 
 // Known pH values for calibration
-pub const PH_ACID: f32 = 2.2;     // Lime juice approximate pH
-pub const PH_NEUTRAL: f32 = 7.0;  // Water approximate pH
-pub const PH_ALKALINE: f32 = 8.4; // Baking soda solution approximate pH
+// pub const PH_ACID: f32 = 2.2;     // Lime juice approximate pH
+// pub const PH_NEUTRAL: f32 = 7.0;  // Water approximate pH
+// pub const PH_ALKALINE: f32 = 8.4; // Baking soda solution approximate pH
 
 // pH conversion parameters
 // These parameters map the ADC values to pH values

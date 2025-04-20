@@ -3,6 +3,15 @@
 version = 4
 
 [[package]]
+name = "algae-medium-monitor"
+version = "0.1.0"
+dependencies = [
+ "avr_delay",
+ "libm",
+ "ruduino",
+]
+
+[[package]]
 name = "avr-config"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -38,13 +47,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "blink"
-version = "0.1.0"
-dependencies = [
- "ruduino",
-]
-
-[[package]]
 name = "const_env--value"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -75,6 +77,12 @@ name = "lazy_static"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
+
+[[package]]
+name = "libm"
+version = "0.2.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8355be11b20d696c8f18f6cc018c4e372165b1fa8126cef092399c9951984ffa"
 
 [[package]]
 name = "proc-macro2"

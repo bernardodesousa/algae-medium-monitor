@@ -21,5 +21,8 @@
   "target-c-int-width": "16",
   "target-endian": "little",
   "target-pointer-width": "16",
-  "vendor": "unknown"
+  "vendor": "unknown",
+  "features": "+avr5",
+  "max-atomic-width": 8,
+  "main-needs-argc-argv": false
 }
