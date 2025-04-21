@@ -11,6 +11,7 @@ mod adc;
 mod temperature;
 mod sensor_manager;
 mod display_controller;
+mod air;
 
 use sensor_manager::SensorManager;
 use display_controller::DisplayController;
@@ -28,12 +29,14 @@ pub extern "C" fn main() {
     // Initialize hardware
     sensor_manager.initialize();
     display_controller.initialize();
+    air::initialize(); // Initialize the air module
     
     // Start reading temperature for initial display
     sensor_manager.start_initial_temperature_reading();
     
     // Time tracking
     let mut current_time: u64 = 0;
+
     
     // Main loop
     loop {
@@ -54,5 +57,12 @@ pub extern "C" fn main() {
         
         // Update time counter
         current_time += DISPLAY_REFRESH_DELAY_MS;
+
+        // Activate bubbles for 30 seconds every 10 minutes (600 seconds)
+        if (current_time % 600000) < 30000 {
+            air::activate_bubbles();
+        } else {
+            air::deactivate_bubbles();
+        }
     }
 }
